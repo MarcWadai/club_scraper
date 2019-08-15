@@ -14,20 +14,42 @@ const args = arg({
 
 const spinner = new Ora();
 
-if (!args['--RAClubId'] || !args['--clubName'] || !args['--apiDiscogs'] || !args['--year']) {
-    console.log('All options are mandatory --RAClubId --clubName --apiDiscogs --year');
-    process.exit(1);
-    return;
-}
+// if (!args['--RAClubId'] || !args['--clubName'] || !args['--apiDiscogs'] || !args['--year']) {
+//     console.log('All options are mandatory --RAClubId --clubName --apiDiscogs --year');
+//     process.exit(1);
+//     return;
+// }
 
-const contents = fs.readFileSync('DATA', 'utf8');
-console.log(contents);
+// const contents = fs.readFileSync('DATA', 'utf8');
+// console.log(contents);
 
 const RAClubId = args['--RAClubId'];
 const clubName = args['--clubName'];
 const year = args['--year'];
 const apiDiscogs = args['--apiDiscogs'];
 
+console.log('apiDiscogs', apiDiscogs);
+console.log('year', year);
+const amsterdam = [
+    {club: 'Undrgrnd', id: '118695'},
+    {club: 'De_School', id: '112491'},
+    {club: 'Claire', id: '124039'},
+    {club: 'Oosterbar', id: '126218'},
+    {club: 'Garage_Noord', id: '137474'},
+    {club: 'Radio_Radio', id: '156530'},
+    {club: 'Club_NL', id: '2839'},
+    {club: 'Disco_Dolly', id: '87805'},
+    {club: 'JACK', id: '138971'},
+    {club: 'Thuishaven', id: '109027'},
+    {club: 'Melkweg', id: '2693'},
+    {club: 'BRET', id: '108549'},
+    {club: 'Sugar_Factory', id: '2690'},
+    {club: 'noorderling', id: '151044'},
+    {club: 'Canvas', id: '12591'},
+    {club: 'John_Doe', id: '109140'},
+    {club: 'RADION', id: '91202'},
+    {club: 'OT301', id: '13028'}
+]
 
 async function fetchYearEventsPage(page) {
     await page.exposeFunction('myFormatDate', utils.myFormatDate);
@@ -151,9 +173,34 @@ function getReleaseGenresFromRelease(url) {
 
 
 (async () => {
-    spinner.text = 'Starting headless browser';
-    spinner.start();
-    const browser = await puppeteer.launch();
+    try {
+        spinner.text = 'Starting headless browser';
+        spinner.start();
+        const browser = await puppeteer.launch();
+        const promiseArray = amsterdam.reduce((acc, curr, index) => {
+            console.log(index);
+            console.log('curr', curr);
+            console.log('acc', acc);
+            return acc.then((res) => {
+                console.log(res);
+                return _processing(browser, curr.id, curr.club);
+            })
+        }, Promise.resolve());
+        promiseArray.then(async (final) => {
+            console.log(final)
+            spinner.clear();
+            await browser.close();
+            process.exit(1);
+        }).catch(err => {
+            console.error(err);
+        });
+    } catch(err) {
+        console.log('err', err);
+        return process.exit(1);
+    }
+})();
+
+async function _processing(browser, RAClubId, name) {
     const page = await browser.newPage();
     await page.goto('https://www.residentadvisor.net/club.aspx?id=' + RAClubId + '&show=events&yr=' + year);
     spinner.succeed();
@@ -180,21 +227,23 @@ function getReleaseGenresFromRelease(url) {
         spinner.text = 'Saving to file...';
         spinner.start();
 
-        utils.saveToFile(`${clubName}_${year}.txt`, JSON.stringify(finish), (err) => {
+        utils.saveToFile(`${name}_${year}.txt`, JSON.stringify(finish), (err) => {
             if (err) {
                 spinner.text = err;
                 spinner.fail(err);
+                return Promise.resolve(`${name} failed to save`);
             }
             // console.log('finish', finish);
             spinner.succeed();
+            page.close();
+            return Promise.resolve(`${name} done`);
         });
 
     } catch (err) {
         spinner.text = err;
         spinner.fail(err);
+        page.close();
+        return Promise.resolve(`${name} failed: ${err}`);
     }
 
-    await browser.close();
-    spinner.clear();
-})();
-
+}
